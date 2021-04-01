@@ -1,56 +1,39 @@
 const axios = require('axios')
-const url = 'https://bitbucket.org/!api/2.0/snippets/tawkto/aA8zqE/4f62624a75da6d1b8dd7f70e53af8d36a1603910/files/webstats.json'
 
-const compTotalWebStats = (webIds, data, startDate, endDate) => {
-  let stats = []
-  let newData = {}
-
-  webIds.forEach((websiteId) => {
-
-    newData = {
-      websiteId: websiteId,
-      totalNumberOfChats: 0,
-      totalNumberOfMissedChats: 0
-    }
-
-    let filteredData = data.filter(data => data.websiteId === websiteId)
-
-    if (startDate && endDate) {
-      filteredData = filteredData.filter(item => { const date = new Date(item.date); return date >= startDate && date <= endDate; })
-    }
-
-    // forEach
-    filteredData.forEach((item) => {
-      newData.totalNumberOfChats += item.chats
-      newData.totalNumberOfMissedChats += item.missedChats
-    })
-
-    stats.push(newData)
-  })
-
-  return stats
-}
-
-const websiteStats = async (startDate, endDate) => {
+const getWebsiteDataAPI = async () => {
+  const url = 'https://bitbucket.org/!api/2.0/snippets/tawkto/aA8zqE/4f62624a75da6d1b8dd7f70e53af8d36a1603910/files/webstats.json'
   try {
-    // fetch json data
-    const response = await axios.get(url)
-    const dataEntries = response.data
-    // filter unique website ids
-    const websiteIds = dataEntries.map(o => o.websiteId)
-    const uniqueWebsiteIds = [...new Set(websiteIds)]
-    // compute the total sum of chats and missedChats
-    return compTotalWebStats(uniqueWebsiteIds, dataEntries, startDate, endDate)
-  } catch (error) {
-    return error
+    const { data } = await axios.get(url)
+    return data
+  } catch {
+    throw new Error('Failed to get Website Data')
   }
 }
 
-const main = async () => {
-  console.log('STATS without date range filter: ')
-  console.log(await websiteStats())
-  console.log('STATS with date range filter: ')
-  console.log(await websiteStats(new Date(2019, 2, 1), new Date(2019, 3, 8)))
+const getTotalStats = (data, startDate, endDate) => {
+  const result = data.reduce((acc, { websiteId, date, chats, missedChats }) => {
+
+    if (startDate && endDate) {
+      const wDate = new Date(date)
+      if (!(wDate >= startDate && wDate <= endDate)) {
+        return acc
+      }
+    }
+
+    acc[websiteId] = acc[websiteId] || { websiteId: '', tChats: 0, tMissedChats: 0 }
+    acc[websiteId].websiteId = websiteId
+    acc[websiteId].tChats += chats
+    acc[websiteId].tMissedChats += missedChats
+    return acc
+  }, {})
+  console.table(result)
+  return result
 }
 
-main()
+const run = async () => {
+  const websiteStatsData = await getWebsiteDataAPI()
+  // console.log(websiteStatsData)
+  return getTotalStats(websiteStatsData, new Date(2019, 2, 1), new Date(2019, 3, 3))
+}
+
+run()
